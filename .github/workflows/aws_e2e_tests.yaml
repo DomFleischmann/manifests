@@ -13,7 +13,7 @@ jobs:
   aws:
     name: AWS
     runs-on: ubuntu-20.04
-    timeout-minutes: 15
+      #    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +50,8 @@ jobs:
       run: |
         juju ssh ubuntu/0 <<EOF
           set -eux
+          # Add public ssh keys for debugging
+          cat "${{ secrets.PUB_KEYS }}" >> .ssh/authorized_keys
           sudo snap install microk8s --classic --channel ${{ matrix.microk8s }}
           sudo apt update
           sudo usermod -a -G microk8s ubuntu
