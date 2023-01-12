@@ -161,6 +161,6 @@ jobs:
         path: stdout-${{ strategy.job-index }}.tar.gz
       if: failure()
 
-    - name: Destroy controller
-      run: juju destroy-controller -y uk8saws --destroy-all-models --destroy-storage
-      if: always()
+        #    - name: Destroy controller
+        #      run: juju destroy-controller -y uk8saws --destroy-all-models --destroy-storage
+        #      if: always()
