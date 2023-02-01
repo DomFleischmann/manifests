@@ -71,9 +71,10 @@ jobs:
       run: |
         juju ssh ubuntu/0 <<EOF
           set -eux
+          sudo sysctl fs.inotify.max_user_instances=1280
+          sudo sysctl fs.inotify.max_user_watches=655360
           cd manifests
-          while ! ./kustomize build example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
-
+          while ! ./kustomize build example | kubectl apply -f -; do kubectl get pod --all-namespaces; echo "Retrying to apply resources"; sleep 10; done
         EOF
 
     - name: MicroK8s status
