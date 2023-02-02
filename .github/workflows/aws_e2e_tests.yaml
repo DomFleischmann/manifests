@@ -74,7 +74,7 @@ jobs:
           sudo sysctl fs.inotify.max_user_instances=1280
           sudo sysctl fs.inotify.max_user_watches=655360
           cd manifests
-          while ! ./kustomize build example | kubectl apply -f -; do kubectl get pod --all-namespaces; echo "Retrying to apply resources"; sleep 10; done
+          while ! ./kustomize build example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
         EOF
       timeout-minutes: 45
 
@@ -102,12 +102,12 @@ jobs:
         juju scp ubuntu/0:~/inspection-report-${{ strategy.job-index }}.tar.gz .
       if: failure()
 
-    - name: Upload debug logs
-      uses: actions/upload-artifact@v2
-      with:
-        name: juju-debug-aws
-        path: juju-debug-${{ strategy.job-index }}.log
-      if: failure()
+    # - name: Upload debug logs
+    #   uses: actions/upload-artifact@v2
+    #   with:
+    #     name: juju-debug-aws
+    #     path: juju-debug-${{ strategy.job-index }}.log
+    #   if: failure()
 
     - name: Upload inspect tarball
       uses: actions/upload-artifact@v2
