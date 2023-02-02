@@ -76,6 +76,7 @@ jobs:
           cd manifests
           while ! ./kustomize build example | kubectl apply -f -; do kubectl get pod --all-namespaces; echo "Retrying to apply resources"; sleep 10; done
         EOF
+      timeout-minutes: 45
 
     - name: MicroK8s status
       run: juju ssh ubuntu/0 sudo microk8s status
