@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-notebook-job
+  namespace: kubeflow-user-example-com
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        access-ml-pipeline: "true"
+    spec:
+      restartPolicy: Never
+      initContainers:
+      - name: copy-notebook
+        image: busybox
+        command: ['sh', '-c', 'cp /scripts/* /etc/kubeflow-e2e/']
+        volumeMounts:
+          - name: e2e-test
+            mountPath: /scripts
+          - name: kubeflow-e2e
+            mountPath: /etc/kubeflow-e2e
+      containers:
+        - image: kubeflownotebookswg/jupyter-scipy:v1.6.1
+          imagePullPolicy: IfNotPresent
+          name: execute-notebook
+          command:
+            - /bin/sh
+            - -c
+            - |
+              jupyter nbconvert --to notebook --execute /etc/kubeflow-e2e/kubeflow-e2e-mnist.ipynb;
+              x=$(echo $?); curl -fsI -X POST http://localhost:15020/quitquitquit && exit $x;
+          volumeMounts:
+            - name: kubeflow-e2e
+              mountPath: /etc/kubeflow-e2e
+      serviceAccountName: default-editor
+      volumes:
+        - name: e2e-test
+          configMap:
+            name: e2e-test
+        - name: kubeflow-e2e
+          emptyDir: {}
+---
+apiVersion: kubeflow.org/v1alpha1
+kind: PodDefault
+metadata:
+  name: access-ml-pipeline
+  namespace: kubeflow-user-example-com
+spec:
+  desc: Allow access to Kubeflow Pipelines
+  selector:
+    matchLabels:
+      access-ml-pipeline: "true"
+  env:
+    - ## this environment variable is automatically read by `kfp.Client()`
+      ## this is the default value, but we show it here for clarity
+      name: KF_PIPELINES_SA_TOKEN_PATH
+      value: /var/run/secrets/kubeflow/pipelines/token
+  volumes:
+    - name: volume-kf-pipeline-token
+      projected:
+        sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 7200
+              ## defined by the `TOKEN_REVIEW_AUDIENCE` environment variable on the `ml-pipeline` deployment
+              audience: pipelines.kubeflow.org
+  volumeMounts:
+    - mountPath: /var/run/secrets/kubeflow/pipelines
+      name: volume-kf-pipeline-token
+      readOnly: true
