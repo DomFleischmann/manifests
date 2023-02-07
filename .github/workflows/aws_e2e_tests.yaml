@@ -17,7 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         juju: [2.9/stable]
-        microk8s: [1.24/stable]
     steps:
     - name: Check out code
       uses: actions/checkout@v2
@@ -50,7 +49,7 @@ jobs:
         juju ssh ubuntu/0 <<EOF
           set -eux
           sudo apt update
-          sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+          sudo apt install -y apt-transport-https ca-certificates curl software-properties-common tar
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
           sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
           apt-cache policy docker-ce
@@ -122,6 +121,78 @@ jobs:
           kubectl -n kubeflow-user-example-com wait --for=condition=complete --timeout=1200s job/test-notebook-job
         EOF
       timeout-minutes: 20
+
+    - name: KinD get pods
+      run: juju ssh ubuntu/0 sudo kubectl get pods -A
+      if: failure()
+
+    - name: KinD describe pods
+      run: juju ssh ubuntu/0 sudo kubectl describe pods -A
+      if: failure()
+
+    - name: KinD export logs
+      run: |
+        set -eux
+        juju ssh ubuntu/0 <<EOF
+          set -eux
+          kind export logs ./logs
+          sudo tar -c -f -z -v kind-logs-${{ strategy.job-index }}.tar.gz ./logs
+        EOF
+        juju scp ubuntu/0:~/kind-logs-${{ strategy.job-index }}.tar.gz .
+      if: failure()
+
+    - name: Upload KinD logs tarball
+      uses: actions/upload-artifact@v2
+      with:
+        name: kind-logs-aws
+        path: ./kind-logs-${{ strategy.job-index }}.tar.gz
+      if: failure()
+
+    - name: Generate kubectl describe
+      run: |
+        set -eux
+        juju ssh ubuntu/0 <<EOF
+          set -eux
+          mkdir describe-${{ strategy.job-index }}
+          for resource in \$(kubectl api-resources -o name | sort); do
+            sudo kubectl describe \$resource -A > describe-${{ strategy.job-index }}/"\$resource".describe || true
+          done
+          tar -cvzf describe.tar.gz describe-${{ strategy.job-index }}/*.describe
+        EOF
+        juju scp ubuntu/0:~/describe.tar.gz describe-${{ strategy.job-index }}.tar.gz
+      if: failure()
+
+    - name: Upload kubectl describe
+      uses: actions/upload-artifact@v2
+      with:
+        name: kubectl-describe-aws
+        path: describe-${{ strategy.job-index }}.tar.gz
+      if: failure()
+
+    - name: Generate kubeflow pod logs
+      run: |
+        set -eux
+        juju ssh ubuntu/0 <<EOF
+          set -eux
+          mkdir stdout-${{ strategy.job-index }}
+          for namespace in admin kubeflow; do
+              for pod in \$(kubectl get pods -n \$namespace -o custom-columns=:metadata.name --no-headers); do
+                  for container in \$(kubectl get pods -n \$namespace -o jsonpath="{.spec.containers[*].name}" \$pod); do
+                    kubectl logs -n \$namespace --timestamps \$pod -c \$container > stdout-${{ strategy.job-index }}/\$namespace-\$pod-\$container.log || true
+                  done
+              done
+          done
+          tar -cvzf stdout.tar.gz stdout-${{ strategy.job-index }}/*.log
+        EOF
+        juju scp ubuntu/0:~/stdout.tar.gz stdout-${{ strategy.job-index }}.tar.gz
+      if: failure()
+
+    - name: Upload kubeflow pod logs
+      uses: actions/upload-artifact@v2
+      with:
+        name: kubectl-stdout-aws
+        path: stdout-${{ strategy.job-index }}.tar.gz
+      if: failure()
 
     - name: Destroy controller
       run: juju destroy-controller -y uk8saws --destroy-all-models --destroy-storage
