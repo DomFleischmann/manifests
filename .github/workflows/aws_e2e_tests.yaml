@@ -118,16 +118,16 @@ jobs:
           cd manifests
           kubectl -n kubeflow-user-example-com create configmap e2e-test --from-file ./tests/e2e/notebook/kubeflow-e2e-mnist.ipynb
           kubectl -n kubeflow-user-example-com create -f ./tests/e2e/yamls/execute-e2e.yaml
-          kubectl -n kubeflow-user-example-com wait --for=condition=complete --timeout=1200s job/test-notebook-job
+          kubectl -n kubeflow-user-example-com wait --for=condition=complete --timeout=1s job/test-notebook-job
         EOF
       timeout-minutes: 20
 
     - name: KinD get pods
-      run: juju ssh ubuntu/0 sudo kubectl get pods -A
+      run: juju ssh ubuntu/0 kubectl get pods -A
       if: failure()
 
     - name: KinD describe pods
-      run: juju ssh ubuntu/0 sudo kubectl describe pods -A
+      run: juju ssh ubuntu/0 kubectl describe pods -A
       if: failure()
 
     - name: KinD export logs
@@ -136,7 +136,7 @@ jobs:
         juju ssh ubuntu/0 <<EOF
           set -eux
           kind export logs ./logs
-          sudo tar -c -f -z -v kind-logs-${{ strategy.job-index }}.tar.gz ./logs
+          tar -czvf kind-logs-${{ strategy.job-index }}.tar.gz ./logs
         EOF
         juju scp ubuntu/0:~/kind-logs-${{ strategy.job-index }}.tar.gz .
       if: failure()
